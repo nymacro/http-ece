@@ -2,13 +2,15 @@
 module DHSpec where
 
 import qualified Data.ByteString            as BS
-import           Network.HTTP.ECE.DH
+import qualified Data.ByteString.Base16     as B16
+import qualified Data.ByteString.Base64.URL as UB64
+
 import           Test.Hspec
 
 import           Crypto.PubKey.ECC.Types
 
-import qualified Data.ByteString.Base16     as B16
-import qualified Data.ByteString.Base64.URL as UB64
+import           Network.HTTP.ECE.DH
+import           Network.HTTP.ECE.Shared
 
 -- reciever
 xPrivateKeyClient = UB64.decodeLenient "iCjNf8v4ox_g1rJuSs_gbNmYuUYx76ZRruQs_CHRzDg"
@@ -53,9 +55,9 @@ spec = do
       let share1 = getShared privateNumber1 publicPoint2
           share2 = getShared privateNumber2 publicPoint1
           key1 = makeSharedKey salt share1
-          nonce1 = getNonce salt share1
+          nonce1 = makeNonce salt share1
           key2 = makeSharedKey salt share2
-          nonce2 = getNonce salt share2
+          nonce2 = makeNonce salt share2
 
       key1 `shouldBe` key2
       nonce1 `shouldBe` nonce2

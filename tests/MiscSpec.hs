@@ -24,6 +24,7 @@ import qualified Data.ByteString.Base64.URL as UB64
 import           Test.Hspec
 
 import           Network.HTTP.ECE.DH
+import           Network.HTTP.ECE.Shared
 
 -- FIXME fixed salt
 -- salt :: ByteString
@@ -89,7 +90,7 @@ misc = do
   -- get shared key
   let clientShared = getShared privateNumberServer publicPointClient
       sharedKey = makeSharedKey salt clientShared
-      nonce = getNonce salt sharedKey
+      nonce = makeNonce salt sharedKey
 
 
   let encrypted = encrypt sharedKey nonce "I am the walrus"
