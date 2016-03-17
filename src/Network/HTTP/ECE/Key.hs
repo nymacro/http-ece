@@ -10,6 +10,7 @@ import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Base64.URL as UB64
 import           Data.Monoid
+import           Data.Text.Encoding         (decodeUtf8, encodeUtf8)
 
 import           Crypto.Random
 
@@ -29,9 +30,9 @@ generateSalt = do
 
 explicitKeyEncrypt :: ByteString -> ByteString -> ByteString -> (Params, ByteString)
 explicitKeyEncrypt key iv plaintext =
-  let params = [ ("Content-Encoding", "aesgcm")
-               , ("Encryption", "keyid=\"a1\"; salt=\"" <> UB64.encode iv <> "\"")
-               , ("Crypto-Key", "keyid=\"a1\"; aesgcm=\"" <> UB64.encode key <> "\"")]
+  let params = [ ("Content-Encoding", Just "aesgcm")
+               , ("Encryption", Just $ "keyid=\"a1\"; salt=\"" <> (decodeUtf8 $ UB64.encode iv) <> "\"")
+               , ("Crypto-Key", Just $ "keyid=\"a1\"; aesgcm=\"" <> (decodeUtf8 $ UB64.encode key) <> "\"")]
   in (params, Shared.encrypt key iv plaintext)
 
 -- explicitKeyDecrypt :: (Params, ByteString) -> Maybe ByteString

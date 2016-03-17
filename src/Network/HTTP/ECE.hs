@@ -1,29 +1,41 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ECE where
 
-import           Data.Attoparsec.ByteString.Char8
-import           Data.ByteString                  (ByteString)
-import           Prelude                          hiding (takeWhile)
+import           Control.Applicative   ((<|>))
+import           Data.Attoparsec.Text
+import           Data.ByteString       (ByteString)
+import qualified Data.ByteString       as BS
+import qualified Data.ByteString.Char8 as BSC
+import           Data.Text             hiding (filter, head, length, null,
+                                        takeWhile)
+import           Data.Text.Encoding    (decodeUtf8, encodeUtf8)
+import           Prelude               hiding (takeWhile)
 
-type Params = [(ByteString, ByteString)]
+type Params = [(Text, Maybe Text)]
 
-parseEncryptionParams :: Parser [ByteString]
+parseEncryptionParams :: Parser Params
 parseEncryptionParams = do
-  let parameter = do
-        takeWhile (\c -> isAlpha_ascii c && c /= ';')
-  sepBy1 parameter (char ';')
+  let alphaNumeric = inClass "A-Za-z0-9"
+      parameterName = takeWhile1 alphaNumeric
+      parameter = do
+        name  <- parameterName
+        let quoted    = char '"' *> (pack <$> manyTill anyChar (char '"'))
+            unquoted  = takeWhile1 (/= ';')
+            withValue = char '=' *> (Just <$> choice [ quoted, unquoted ])
+            noValue   = return Nothing
+        value <- choice [ withValue, noValue ]
+        return (name, value)
+  sepBy1 parameter (char ';' <* skipSpace)
 
--- parseEncryptionParams' :: Parser [(ByteString, Maybe ByteString)]
--- parseEncryptionParams' = do
---   let parameter = do
---         takeWhile (isAlpha_ascii && char ';')
---   sepBy1 parameter (char ';')
+decodeEncryptionParams :: Text -> Either String Params
+decodeEncryptionParams = parseOnly parseEncryptionParams
 
-getParam :: Params -> ByteString -> Maybe ByteString
+getParam :: Params -> Text -> Maybe Text
 getParam params key =
   let matches = filter (\x -> fst x == key) params
   in if null matches || length matches > 1
      then Nothing
-     else Just $ snd $ head matches
+     else snd $ head matches
 
 -- getParams :: Params -> ByteString -> Maybe Params
 -- getParams

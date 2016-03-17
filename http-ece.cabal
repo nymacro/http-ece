@@ -28,6 +28,8 @@ library
                      , binary
                      , attoparsec
                      , base64-bytestring
+                     , http-types
+                     , text
 
 test-suite test
   type:                exitcode-stdio-1.0
