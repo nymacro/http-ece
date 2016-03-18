@@ -44,7 +44,7 @@ class ContentEncoding a where
   encrypt :: ByteString
           -> ByteString
           -> ByteString
-          -> a (Params, ByteString)
+          -> Maybe (a (Params, ByteString))
 
   decrypt :: (Params, ByteString)
-          -> a (Maybe ByteString)
+          -> Maybe (a (Maybe ByteString))

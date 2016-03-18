@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module DHSpec where
 
+import           Control.Applicative
+import           Control.Monad
+import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Base16     as B16
 import qualified Data.ByteString.Base64.URL as UB64
@@ -62,12 +65,12 @@ spec = do
       key1 `shouldBe` key2
       nonce1 `shouldBe` nonce2
 
-      let encrypted1 = encrypt key1 nonce1 plaintext
+      let plaintext = "Hello World" :: ByteString
+          encrypted1 = encrypt key1 nonce1 plaintext
           encrypted2 = encrypt key2 nonce2 plaintext
-          plaintext = "Hello World"
 
-      decrypt key2 nonce2 encrypted1 `shouldBe` Just plaintext
-      decrypt key1 nonce1 encrypted2 `shouldBe` Just plaintext
+      join (decrypt key2 nonce2 <$> encrypted1) `shouldBe` Just plaintext
+      join (decrypt key1 nonce1 <$> encrypted2) `shouldBe` Just plaintext
 
     -- it "should generate the correct nonce" $ do
     --   let priv1 = loadPrivateKey xPrivateKeyClient
@@ -79,3 +82,16 @@ spec = do
     it "should be able to load ECDH public point" $ do
       loadPublicPoint xPublicKeyClient `shouldBe` Just (Point 110007014751775540525562297837608235252671747216779544670154428477160159313209
                                                               78151973610564024074054410620959345729707977195367740423366101443779682410964)
+
+    -- FIXME.. This doesn't match, which is a big bad bad
+    let senderPublic    = loadPublicPoint $ UB64.decodeLenient "BNoRDbb84JGm8g5Z5CFxurSqsXWJ11ItfXEWYVLE85Y7CYkDjXsIEc4aqxYaQ1G8BqkXCJ6DPpDrWtdWj_mugHU"
+        senderPrivate   = loadPrivateKey  $ UB64.decodeLenient "nCScek-QpEjmOOlT-rQ38nZzvdPlqa00Zy0i6m2OJvY"
+        receiverPublic  = loadPublicPoint $ UB64.decodeLenient "BCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQU"
+        receiverPrivate = loadPrivateKey  $ UB64.decodeLenient "9FWl15_QUQAWDaD3k3l50ZBZQJ4au27F1V4F0uLSD_M"
+        salt            = UB64.decodeLenient "lngarbyKfMoi9Z75xYXmkg"
+        -- expected values
+        sharedSecret    = UB64.decodeLenient "RNjC-NVW4BGJbxWPW7G2mowsLeDa53LYKYm4-NOQ6Y"
+    it "should match appendix B (1/2)" $ do
+      getShared senderPrivate <$> receiverPublic `shouldBe` Just sharedSecret
+    it "should match appendix B (2/2)" $ do
+      getShared receiverPrivate <$> senderPublic `shouldBe` Just sharedSecret

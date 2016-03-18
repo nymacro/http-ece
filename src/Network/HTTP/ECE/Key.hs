@@ -28,12 +28,15 @@ generateSalt = do
   let (bytes, gen) = randomBytesGenerate 16 rng
   return bytes
 
-explicitKeyEncrypt :: ByteString -> ByteString -> ByteString -> (Params, ByteString)
+explicitKeyEncrypt :: ByteString -> ByteString -> ByteString -> Maybe (Params, ByteString)
 explicitKeyEncrypt key iv plaintext =
   let params = [ ("Content-Encoding", Just "aesgcm")
                , ("Encryption", Just $ "keyid=\"a1\"; salt=\"" <> (decodeUtf8 $ UB64.encode iv) <> "\"")
                , ("Crypto-Key", Just $ "keyid=\"a1\"; aesgcm=\"" <> (decodeUtf8 $ UB64.encode key) <> "\"")]
-  in (params, Shared.encrypt key iv plaintext)
+      ciphertext = Shared.encrypt key iv plaintext
+  in case ciphertext of
+    Just c  -> Just (params, c)
+    Nothing -> Nothing
 
 -- explicitKeyDecrypt :: (Params, ByteString) -> Maybe ByteString
 -- explicitKeyDecrypt (params, ciphertext) = do
@@ -41,5 +44,5 @@ explicitKeyEncrypt key iv plaintext =
 --   in undefined
 
 instance ContentEncoding ExplicitKey where
-  encrypt key salt plaintext = ExplicitKey $ explicitKeyEncrypt key salt plaintext
+  encrypt key salt plaintext = ExplicitKey <$> explicitKeyEncrypt key salt plaintext
   decrypt = undefined

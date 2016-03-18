@@ -114,7 +114,7 @@ misc = do
   let serverShared = getShared privateNumberClient publicPointClient
       sharedKey' = makeSharedKey salt serverShared
 
-  let decrypted = decrypt sharedKey' nonce encrypted
+  let decrypted = decrypt sharedKey' nonce <$> encrypted
   print decrypted
 
   putStrLn ""
