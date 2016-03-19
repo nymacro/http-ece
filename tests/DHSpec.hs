@@ -84,9 +84,11 @@ spec = do
                                                               78151973610564024074054410620959345729707977195367740423366101443779682410964)
 
     -- FIXME.. This doesn't match, which is a big bad bad
-    let senderPublic    = loadPublicPoint $ UB64.decodeLenient "BNoRDbb84JGm8g5Z5CFxurSqsXWJ11ItfXEWYVLE85Y7CYkDjXsIEc4aqxYaQ1G8BqkXCJ6DPpDrWtdWj_mugHU"
+    let senderPublic    = loadPublicPoint senderPublicB
+        senderPublicB   = UB64.decodeLenient "BNoRDbb84JGm8g5Z5CFxurSqsXWJ11ItfXEWYVLE85Y7CYkDjXsIEc4aqxYaQ1G8BqkXCJ6DPpDrWtdWj_mugHU"
         senderPrivate   = loadPrivateKey  $ UB64.decodeLenient "nCScek-QpEjmOOlT-rQ38nZzvdPlqa00Zy0i6m2OJvY"
-        receiverPublic  = loadPublicPoint $ UB64.decodeLenient "BCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQU"
+        receiverPublic  = loadPublicPoint receiverPublicB
+        receiverPublicB = UB64.decodeLenient "BCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQU"
         receiverPrivate = loadPrivateKey  $ UB64.decodeLenient "9FWl15_QUQAWDaD3k3l50ZBZQJ4au27F1V4F0uLSD_M"
         salt            = UB64.decodeLenient "lngarbyKfMoi9Z75xYXmkg"
         -- expected values
@@ -95,3 +97,7 @@ spec = do
       getShared senderPrivate <$> receiverPublic `shouldBe` Just sharedSecret
     it "should match appendix B (2/2)" $ do
       getShared receiverPrivate <$> senderPublic `shouldBe` Just sharedSecret
+
+    it "should do things" $ do
+      let label = "P-256"
+      cekInfo (cekContext label receiverPublicB senderPublicB) `shouldBe` UB64.decodeLenient "Q29udGVudC1FbmNvZGluZzogYWVzZ2NtAFAtMjU2AABBBCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQUAQQTaEQ22_OCRpvIOWeQhcbq0qrF1iddSLX1xFmFSxPOWOwmJA417CBHOGqsWGkNRvAapFwiegz6Q61rXVo_5roB1"

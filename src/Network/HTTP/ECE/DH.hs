@@ -5,6 +5,7 @@ module Network.HTTP.ECE.DH
        , curve
        , Network.HTTP.ECE.DH.getShared
        , cekInfo
+       , cekContext
        , loadPublicPoint
        , loadPrivateKey
        , PrivateNumber
@@ -52,7 +53,16 @@ fromPoint point = let (x, y) = P256.pointToIntegers point
 
 -- | info parameter to used for HKDF
 cekInfo :: ByteString -> ByteString
-cekInfo context = "Content-Encoding: aesgcm128" <> "\x0" <> context
+cekInfo context = "Content-Encoding: aesgcm" <> "\x0" <> context
+
+-- | Content Encryption Key context
+cekContext :: ByteString -> ByteString -> ByteString -> ByteString
+cekContext label senderPublic recipientPublic =
+  label <> "\x0"
+    <> (toStrict . runPut $ putWord16be $ fromIntegral $ BS.length recipientPublic)
+    <> recipientPublic
+    <> (toStrict . runPut $ putWord16be $ fromIntegral $ BS.length senderPublic)
+    <> senderPublic
 
 makeSharedKey :: ByteString -- ^ salt
               -> ByteString -- ^ input key material (shared key)
@@ -63,6 +73,8 @@ makeSharedKey salt keyMaterial =
 
 nonceInfo :: ByteString -> ByteString
 nonceInfo context = "Content-Encoding: nonce" <> "\x0" <> context
+
+nonceContext = cekContext
 
 -- | https://tools.ietf.org/html/draft-thomson-http-encryption-01#section-3.3
 makeNonce :: ByteString -- ^ salt
@@ -76,6 +88,7 @@ trimIV :: ByteString -> Int -> ByteString
 trimIV b ctr = let (mask, rest) = BS.splitAt 4 b
                    ctrBs = toStrict $ runPut $ putWord64be (fromIntegral ctr)
                in rest <> BS.pack (zipWith (^) (BS.unpack mask) (BS.unpack ctrBs))
+
 -- | load a P256 public point
 loadPublicPoint :: ByteString -> Maybe Point
 loadPublicPoint bs = do
