@@ -1,5 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.ECE where
+module Network.HTTP.ECE ( ECEMethod (..)
+                        , KeyStore
+                        , newKeyStore
+                        , addKey
+                        , removeKey
+                        , getKey
+                        , Params
+                        , decodeEncryptionParams
+                        , encodeEncryptionParams
+                        , getParam
+                        , getHeader
+                        , ContentEncoding (..) ) where
 
 import           Control.Applicative   ((<|>))
 import           Control.Monad         (filterM)
@@ -11,6 +22,7 @@ import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.List             as List
+import qualified Data.Map.Strict       as Map
 import           Data.Monoid
 import           Data.Text             hiding (filter, head, length, null,
                                         takeWhile)
@@ -18,10 +30,30 @@ import           Data.Text.Encoding    (decodeUtf8, encodeUtf8)
 
 import           Prelude               hiding (takeWhile)
 
--- TODO allow multi-params sets i.e. comma seperated
+data ECEMethod = ExplicitMethod
+               | DHMethod
+               | PreSharedMethod
+               deriving (Eq, Ord)
 
+-- | Key storage for lookup. Probably needs a typeclass.
+type KeyStore = Map.Map (ECEMethod, ByteString) ByteString
+
+newKeyStore :: KeyStore
+newKeyStore = Map.empty
+
+addKey :: (ECEMethod, ByteString) -> ByteString -> KeyStore -> KeyStore
+addKey = Map.insert
+
+removeKey :: (ECEMethod, ByteString) -> KeyStore -> KeyStore
+removeKey = Map.delete
+
+getKey :: (ECEMethod, ByteString) -> KeyStore -> Maybe ByteString
+getKey = Map.lookup
+
+-- TODO allow multi-params sets i.e. comma seperated
 type Params = [(Text, Maybe Text)]
 
+-- | parse encryption params header string
 parseEncryptionParams :: Parser Params
 parseEncryptionParams = do
   let alphaNumeric = inClass "A-Za-z0-9"
@@ -36,6 +68,7 @@ parseEncryptionParams = do
         return (name, value)
   sepBy1 parameter (char ';' <* skipSpace)
 
+-- | parse encryption params header string
 decodeEncryptionParams :: Text -> Maybe Params
 decodeEncryptionParams = toMaybe . parseOnly parseEncryptionParams
 
@@ -59,12 +92,14 @@ encodeEncryptionParams = mconcat . List.intersperse seperator . fmap paramPairTo
                          Just v  -> key <> "=" <> "\"" <> v <> "\""
                          Nothing -> key
 
+-- | get first header with specific name
 getHeader :: HeaderName -> [Header] -> Maybe ByteString
 getHeader key header =
   case filter (\x -> fst x == key) header of
     []         -> Nothing
     (_, v) : _ -> Just v
 
+-- | Content encoding type
 class ContentEncoding a where
   encrypt :: ByteString -- ^ key
           -> ByteString -- ^ salt

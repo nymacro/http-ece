@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.ECE.Key where
+module Network.HTTP.ECE.Key ( ExplicitKey (..)
+                            , generateKey
+                            , generateSalt
+                            , explicitKeyLookup ) where
 
 import           Network.HTTP.ECE
 import qualified Network.HTTP.ECE.Shared    as Shared
@@ -58,6 +61,10 @@ explicitKeyDecrypt (headers, ciphertext) _ = do
   let keyBytes  = UB64.decodeLenient $ encodeUtf8 key
       saltBytes = UB64.decodeLenient $ encodeUtf8 salt
   Shared.decrypt keyBytes saltBytes ciphertext
+
+-- | helper function for ExplicitKey key lookups
+explicitKeyLookup :: ByteString -> KeyStore -> Maybe ByteString
+explicitKeyLookup keyid = getKey (ExplicitMethod, keyid)
 
 instance ContentEncoding ExplicitKey where
   encrypt key salt plaintext = ExplicitKey <$> explicitKeyEncrypt key salt plaintext
