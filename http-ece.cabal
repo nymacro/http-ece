@@ -46,3 +46,4 @@ test-suite test
                      , base64-bytestring
                      , base16-bytestring
                      , hspec
+                     , http-types
