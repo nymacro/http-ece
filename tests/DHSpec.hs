@@ -7,13 +7,14 @@ import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Base16     as B16
 import qualified Data.ByteString.Base64.URL as UB64
+import           Data.Monoid
 
 import           Test.Hspec
 
 import           Crypto.PubKey.ECC.Types
 
 import           Network.HTTP.ECE.DH
-import           Network.HTTP.ECE.Shared
+import qualified Network.HTTP.ECE.Shared    as Shared
 
 -- reciever
 xPrivateKeyClient = UB64.decodeLenient "iCjNf8v4ox_g1rJuSs_gbNmYuUYx76ZRruQs_CHRzDg"
@@ -55,22 +56,24 @@ spec = do
     it "should be able to create shared key" $ do
       (privateNumber1, publicPoint1) <- generateP256
       (privateNumber2, publicPoint2) <- generateP256
-      let share1 = getShared privateNumber1 publicPoint2
+      let cekInfo = Shared.cekInfo ""
+          nonceInfo = Shared.nonceInfo ""
+          share1 = getShared privateNumber1 publicPoint2
           share2 = getShared privateNumber2 publicPoint1
-          key1 = makeSharedKey salt share1
-          nonce1 = makeNonce salt share1
-          key2 = makeSharedKey salt share2
-          nonce2 = makeNonce salt share2
+          key1 = Shared.makeSharedKey salt share1 cekInfo
+          nonce1 = Shared.makeNonce salt share1 nonceInfo
+          key2 = Shared.makeSharedKey salt share2 cekInfo
+          nonce2 = Shared.makeNonce salt share2 nonceInfo
 
       key1 `shouldBe` key2
       nonce1 `shouldBe` nonce2
 
       let plaintext = "Hello World" :: ByteString
-          encrypted1 = encrypt key1 nonce1 plaintext
-          encrypted2 = encrypt key2 nonce2 plaintext
+          encrypted1 = Shared.encrypt key1 nonce1 plaintext
+          encrypted2 = Shared.encrypt key2 nonce2 plaintext
 
-      join (decrypt key2 nonce2 <$> encrypted1) `shouldBe` Just plaintext
-      join (decrypt key1 nonce1 <$> encrypted2) `shouldBe` Just plaintext
+      (Shared.decrypt key2 nonce2 =<< encrypted1) `shouldBe` Just plaintext
+      (Shared.decrypt key1 nonce1 =<< encrypted2) `shouldBe` Just plaintext
 
     -- it "should generate the correct nonce" $ do
     --   let priv1 = loadPrivateKey xPrivateKeyClient
@@ -93,11 +96,11 @@ spec = do
         salt            = UB64.decodeLenient "lngarbyKfMoi9Z75xYXmkg"
         -- expected values
         sharedSecret    = UB64.decodeLenient "RNjC-NVW4BGJbxWPW7G2mowsLeDa53LYKYm4-NOQ6Y"
-    it "should match appendix B (1/2)" $ do
+    it "DH shared key should match appendix B (1/2)" $ do
       getShared senderPrivate <$> receiverPublic `shouldBe` Just sharedSecret
-    it "should match appendix B (2/2)" $ do
+    it "DH shared key should match appendix B (2/2)" $ do
       getShared receiverPrivate <$> senderPublic `shouldBe` Just sharedSecret
 
     it "should do things" $ do
       let label = "P-256"
-      cekInfo (cekContext label receiverPublicB senderPublicB) `shouldBe` UB64.decodeLenient "Q29udGVudC1FbmNvZGluZzogYWVzZ2NtAFAtMjU2AABBBCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQUAQQTaEQ22_OCRpvIOWeQhcbq0qrF1iddSLX1xFmFSxPOWOwmJA417CBHOGqsWGkNRvAapFwiegz6Q61rXVo_5roB1"
+      Shared.cekInfo (cekContext label receiverPublicB senderPublicB) `shouldBe` UB64.decodeLenient "Q29udGVudC1FbmNvZGluZzogYWVzZ2NtAFAtMjU2AABBBCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQUAQQTaEQ22_OCRpvIOWeQhcbq0qrF1iddSLX1xFmFSxPOWOwmJA417CBHOGqsWGkNRvAapFwiegz6Q61rXVo_5roB1"

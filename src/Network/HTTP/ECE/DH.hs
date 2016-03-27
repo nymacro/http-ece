@@ -1,16 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ECE.DH
        ( generateP256
-       , makeSharedKey
        , curve
        , Network.HTTP.ECE.DH.getShared
-       , cekInfo
        , cekContext
        , loadPublicPoint
        , loadPrivateKey
        , PrivateNumber
-       , PublicPoint
-       , makeNonce ) where
+       , PublicPoint ) where
 
 import           Data.Binary.Put
 import qualified Data.ByteArray             as ByteArray
@@ -21,14 +18,13 @@ import           Data.Monoid
 
 import           Crypto.Error               (eitherCryptoError,
                                              maybeCryptoError)
-import           Crypto.Hash.Algorithms
-import           Crypto.KDF.HKDF
-import           Crypto.MAC.HMAC
 import           Crypto.Number.Serialize
 import           Crypto.PubKey.ECC.DH       as DH
 import           Crypto.PubKey.ECC.Generate
 import qualified Crypto.PubKey.ECC.P256     as P256
 import           Crypto.PubKey.ECC.Types
+
+import qualified Network.HTTP.ECE.Shared    as Shared
 
 curve :: Curve
 curve = getCurveByName SEC_p256r1
@@ -51,10 +47,6 @@ fromPoint :: P256.Point -> Point
 fromPoint point = let (x, y) = P256.pointToIntegers point
                   in Point x y
 
--- | info parameter to used for HKDF
-cekInfo :: ByteString -> ByteString
-cekInfo context = "Content-Encoding: aesgcm" <> "\x0" <> context
-
 -- | Content Encryption Key context
 cekContext :: ByteString -> ByteString -> ByteString -> ByteString
 cekContext label senderPublic recipientPublic =
@@ -64,25 +56,7 @@ cekContext label senderPublic recipientPublic =
     <> (toStrict . runPut $ putWord16be $ fromIntegral $ BS.length senderPublic)
     <> senderPublic
 
-makeSharedKey :: ByteString -- ^ salt
-              -> ByteString -- ^ input key material (shared key)
-              -> ByteString -- ^ 128-bit AES key
-makeSharedKey salt keyMaterial =
-  let prk = extract salt keyMaterial :: PRK SHA256
-  in expand prk (cekInfo "") 16
-
-nonceInfo :: ByteString -> ByteString
-nonceInfo context = "Content-Encoding: nonce" <> "\x0" <> context
-
 nonceContext = cekContext
-
--- | https://tools.ietf.org/html/draft-thomson-http-encryption-01#section-3.3
-makeNonce :: ByteString -- ^ salt
-          -> ByteString -- ^ input key material (shared key)
-          -> ByteString -- ^ 128-bit AES key
-makeNonce salt keyMaterial =
-  let prk = extract salt keyMaterial :: PRK SHA256
-  in expand prk (nonceInfo "") 12 <> BS.pack [0,0,0,0] -- 12 octect HKDF output <> 4 byte sequence number
 
 trimIV :: ByteString -> Int -> ByteString
 trimIV b ctr = let (mask, rest) = BS.splitAt 4 b

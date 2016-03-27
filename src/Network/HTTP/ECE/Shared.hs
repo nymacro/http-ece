@@ -1,37 +1,72 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.ECE.Shared (encrypt, decrypt, authTagFromByteString) where
+module Network.HTTP.ECE.Shared ( encrypt
+                               , decrypt
+                               , authTagFromByteString
+                               , cekInfo
+                               , nonceInfo
+                               , makeSharedKey
+                               , makeNonce ) where
 
 import           Control.Applicative
 import           Control.Monad
 import           Data.Bits
-import qualified Data.ByteArray      as ByteArray
-import           Data.ByteString     (ByteString)
-import qualified Data.ByteString     as BS
+import qualified Data.ByteArray         as ByteArray
+import           Data.ByteString        (ByteString)
+import qualified Data.ByteString        as BS
 import           Data.Monoid
 
 import           Crypto.Cipher.AES
 import           Crypto.Cipher.Types
 import           Crypto.Error
+import           Crypto.Hash.Algorithms
+import           Crypto.KDF.HKDF
+import           Crypto.MAC.HMAC
 
 import           Debug.Trace
 
--- traceMaybe msg a = case a of
---                      Just x -> Just x
---                      Nothing -> trace msg Nothing
+traceMaybe msg a = case a of
+                     Just x -> Just x
+                     Nothing -> trace ("failed: " <> msg) Nothing
 
 -- TODO remove this
-traceMaybe _ a = case a of
-                   Just x -> Just x
-                   Nothing -> Nothing
+-- traceMaybe _ a = case a of
+--                    Just x -> Just x
+--                    Nothing -> Nothing
 
+makeSharedKey :: ByteString -- ^ salt
+              -> ByteString -- ^ input key material (shared key)
+              -> ByteString -- ^ context
+              -> ByteString -- ^ 128-bit AES key
+makeSharedKey salt keyMaterial context =
+  let prk = extract salt keyMaterial :: PRK SHA256
+  in expand prk (cekInfo context <> "\x01") 16
+
+-- | https://tools.ietf.org/html/draft-thomson-http-encryption-01#section-3.3
+makeNonce :: ByteString -- ^ salt
+          -> ByteString -- ^ input key material (shared key)
+          -> ByteString -- ^ context
+          -> ByteString -- ^ 128-bit AES key
+makeNonce salt keyMaterial context =
+  let prk = extract salt keyMaterial :: PRK SHA256
+  in expand prk (nonceInfo context <> "\x01") 12 <> BS.pack [0,0,0,0] -- 12 octect HKDF output <> 4 byte sequence number
+
+-- | info parameter to used for HKDF key derivation
+cekInfo :: ByteString -> ByteString
+cekInfo context = "Content-Encoding: aesgcm" <> "\x0" <> context
+
+-- | info parameter used for nonce derivation
+nonceInfo :: ByteString -> ByteString
+nonceInfo context = "Content-Encoding: nonce" <> "\x0" <> context
+
+-- | general encrypt
 encrypt :: ByteString -- ^ encryption key
         -> ByteString -- ^ nonce
         -> ByteString -- ^ data to encrypt
         -> Maybe ByteString
 encrypt encryptionKey nonce plaintext = do
-  aesCipher <- traceMaybe "cipherINIT failed" $ maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
-  iv        <- traceMaybe "IV failed" $ makeIV nonce :: Maybe (IV AES128)
-  cipher    <- traceMaybe "aeadInit failed" $ maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
+  aesCipher <- traceMaybe "cipherInit" $ maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
+  iv        <- traceMaybe "makeIV" $ makeIV nonce :: Maybe (IV AES128)
+  cipher    <- traceMaybe "aeadInit" $ maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
   -- add padding
   let padSizeLen = 2
       toEncrypt  = BS.replicate padSizeLen 0 <> plaintext
@@ -44,16 +79,17 @@ authTagToByteString = BS.pack . ByteArray.unpack . unAuthTag
 authTagFromByteString :: ByteString -> AuthTag
 authTagFromByteString = AuthTag . ByteArray.pack . BS.unpack
 
+-- | general decrypt
 decrypt :: ByteString -- ^ encryption key
         -> ByteString -- ^ nonce
         -> ByteString -- ^ encrypted payload
         -> Maybe ByteString
 decrypt encryptionKey nonce payload = do
-  aesCipher <- traceMaybe "cipherINIT" $ maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
+  aesCipher <- traceMaybe "cipherInit" $ maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
   iv        <- traceMaybe "makeIV" $ makeIV nonce :: Maybe (IV AES128)
-  cipher    <- traceMaybe "aeadINIT" $ maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
+  cipher    <- traceMaybe "aeadInit" $ maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
   let (ciphertext, tag) = BS.splitAt (BS.length payload - 16) payload
-  plaintext <- aeadSimpleDecrypt cipher ("" :: ByteString) ciphertext (authTagFromByteString tag)
+  plaintext <- traceShowId $ aeadSimpleDecrypt cipher ("" :: ByteString) ciphertext (authTagFromByteString tag)
   let padSizeLen  = 2
       paddingSize = BS.take padSizeLen plaintext
       padSize     = fromIntegral $ BS.foldl1 (\x y -> shift x 8 .|. y) paddingSize

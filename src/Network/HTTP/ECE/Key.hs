@@ -9,7 +9,6 @@ import           Network.HTTP.ECE
 import qualified Network.HTTP.ECE.Shared    as Shared
 import           Network.HTTP.Types
 
-import           Control.Monad              (join)
 import qualified Data.ByteArray             as ByteArray
 import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
@@ -39,12 +38,12 @@ explicitKeyEncrypt :: ByteString
                    -> ByteString
                    -> Maybe ([Header], ByteString)
 explicitKeyEncrypt key salt plaintext =
-  let keyId   = "a1"
-      headers = [ ("Content-Encoding", "aesgcm")
-                , ("Encryption", encodeEncryptionParams [ ("keyid", Just keyId)
-                                                        , ("salt", Just $ decodeUtf8 $ UB64.encode salt)] )
-                , ("Crypto-Key", encodeEncryptionParams [ ("keyid", Just keyId)
-                                                        , ("aesgcm", Just $ decodeUtf8 $ UB64.encode key) ])]
+  let keyId      = "a1"
+      headers    = [ ("Content-Encoding", "aesgcm")
+                   , ("Encryption", encodeEncryptionParams [ ("keyid", Just keyId)
+                                                           , ("salt", Just $ decodeUtf8 $ UB64.encode salt)] )
+                   , ("Crypto-Key", encodeEncryptionParams [ ("keyid", Just keyId)
+                                                           , ("aesgcm", Just $ decodeUtf8 $ UB64.encode key) ])]
       ciphertext = Shared.encrypt key salt plaintext
   in case ciphertext of
     Just c  -> Just (headers, c)
