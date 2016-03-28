@@ -103,4 +103,4 @@ spec = do
 
     it "should do things" $ do
       let label = "P-256"
-      Shared.cekInfo (cekContext label receiverPublicB senderPublicB) `shouldBe` UB64.decodeLenient "Q29udGVudC1FbmNvZGluZzogYWVzZ2NtAFAtMjU2AABBBCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQUAQQTaEQ22_OCRpvIOWeQhcbq0qrF1iddSLX1xFmFSxPOWOwmJA417CBHOGqsWGkNRvAapFwiegz6Q61rXVo_5roB1"
+      Shared.cekInfo (dhContext label receiverPublicB senderPublicB) `shouldBe` UB64.decodeLenient "Q29udGVudC1FbmNvZGluZzogYWVzZ2NtAFAtMjU2AABBBCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQUAQQTaEQ22_OCRpvIOWeQhcbq0qrF1iddSLX1xFmFSxPOWOwmJA417CBHOGqsWGkNRvAapFwiegz6Q61rXVo_5roB1"
