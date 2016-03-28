@@ -31,7 +31,7 @@ spec = do
       it "should encrypt/decrypt" $ do
         let salt      = UB64.decodeLenient "vr0o6Uq3w_KDWeatc27mUg"
             key       = UB64.decodeLenient "csPJEXBYA5U-Tal9EdJi-w"
-            encrypted = encrypt key salt "I am the walrus" :: Maybe (ExplicitKey ([Header], ByteString))
+            encrypted = encrypt "a1" key salt "I am the walrus" :: Maybe (ExplicitKey ([Header], ByteString))
             decrypted = decrypt (const Nothing) =<< encrypted
         decrypted `shouldBe` Just "I am the walrus"
 

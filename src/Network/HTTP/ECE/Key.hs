@@ -33,18 +33,23 @@ generateSalt = do
   let (bytes, gen) = randomBytesGenerate 16 rng
   return bytes
 
-explicitKeyEncrypt :: ByteString
+explicitKeyContext :: ByteString
+explicitKeyContext = ""
+
+explicitKeyEncrypt :: Text
+                   -> ByteString
                    -> ByteString
                    -> ByteString
                    -> Maybe ([Header], ByteString)
-explicitKeyEncrypt key salt plaintext =
-  let keyId      = "a1"
-      headers    = [ ("Content-Encoding", "aesgcm")
+explicitKeyEncrypt keyId secret salt plaintext =
+  let headers    = [ ("Content-Encoding", "aesgcm")
                    , ("Encryption", encodeEncryptionParams [ ("keyid", Just keyId)
                                                            , ("salt", Just $ decodeUtf8 $ UB64.encode salt)] )
                    , ("Crypto-Key", encodeEncryptionParams [ ("keyid", Just keyId)
-                                                           , ("aesgcm", Just $ decodeUtf8 $ UB64.encode key) ])]
-      ciphertext = Shared.encrypt key salt plaintext
+                                                           , ("aesgcm", Just $ decodeUtf8 $ UB64.encode secret) ])]
+      hkdfKey    = Shared.makeSharedKey salt secret explicitKeyContext
+      hkdfSalt   = Shared.makeNonce salt secret explicitKeyContext
+      ciphertext = Shared.encrypt hkdfKey hkdfSalt plaintext
   in case ciphertext of
     Just c  -> Just (headers, c)
     Nothing -> Nothing
@@ -55,16 +60,18 @@ explicitKeyDecrypt :: ([Header], ByteString)
 explicitKeyDecrypt (headers, ciphertext) _ = do
   encryptionParams <- getHeader "Encryption" headers >>= decodeEncryptionParams . decodeUtf8
   cryptoKeyParams  <- getHeader "Crypto-Key" headers >>= decodeEncryptionParams . decodeUtf8
-  key              <- getParam "aesgcm" cryptoKeyParams
+  secret           <- getParam "aesgcm" cryptoKeyParams
   salt             <- getParam "salt" encryptionParams
-  let keyBytes  = UB64.decodeLenient $ encodeUtf8 key
-      saltBytes = UB64.decodeLenient $ encodeUtf8 salt
-  Shared.decrypt keyBytes saltBytes ciphertext
+  let hkdfKey     = Shared.makeSharedKey saltBytes secretBytes explicitKeyContext
+      hkdfSalt    = Shared.makeNonce saltBytes secretBytes explicitKeyContext
+      secretBytes = UB64.decodeLenient $ encodeUtf8 secret
+      saltBytes   = UB64.decodeLenient $ encodeUtf8 salt
+  Shared.decrypt hkdfKey hkdfSalt ciphertext
 
 -- | helper function for ExplicitKey key lookups
 explicitKeyLookup :: ByteString -> KeyStore -> Maybe ByteString
 explicitKeyLookup keyid = getKey (ExplicitMethod, keyid)
 
 instance ContentEncoding ExplicitKey where
-  encrypt key salt plaintext = ExplicitKey <$> explicitKeyEncrypt key salt plaintext
+  encrypt keyId key salt plaintext = ExplicitKey <$> explicitKeyEncrypt keyId key salt plaintext
   decrypt _ (ExplicitKey x)  = explicitKeyDecrypt x (const Nothing)

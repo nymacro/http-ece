@@ -101,11 +101,12 @@ getHeader key header =
 
 -- | Content encoding type
 class ContentEncoding a where
-  encrypt :: ByteString -- ^ key
+  encrypt :: Text       -- ^ key id
+          -> ByteString -- ^ secret
           -> ByteString -- ^ salt
           -> ByteString -- ^ plaintext
           -> Maybe (a ([Header], ByteString))
 
   decrypt :: (Text -> Maybe ByteString) -- ^ key retrieval func
-          -> a ([Header], ByteString) -- ^ output from encrypt
+          -> a ([Header], ByteString)  -- ^ output from encrypt
           -> Maybe ByteString
