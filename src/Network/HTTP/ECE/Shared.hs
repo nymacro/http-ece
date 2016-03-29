@@ -4,6 +4,7 @@ module Network.HTTP.ECE.Shared ( encrypt
                                , authTagFromByteString
                                , cekInfo
                                , nonceInfo
+                               , traceMaybe
                                , makeSharedKey
                                , makeNonce ) where
 
@@ -48,7 +49,7 @@ makeNonce :: ByteString -- ^ salt
           -> ByteString -- ^ 128-bit AES key
 makeNonce salt keyMaterial context =
   let prk = extract salt keyMaterial :: PRK SHA256
-  in expand prk (nonceInfo context <> "\x01") 12 <> BS.pack [0,0,0,0] -- 12 octect HKDF output <> 4 byte sequence number
+  in expand prk (nonceInfo context <> "\x01") 12 <> BS.pack [0,0,0,0] -- FIXME 12 octet HKDF output <> 4 byte null. Should be just 12 octet
 
 -- | info parameter to used for HKDF key derivation
 cekInfo :: ByteString -> ByteString
@@ -89,7 +90,7 @@ decrypt encryptionKey nonce payload = do
   iv        <- traceMaybe "makeIV" $ makeIV nonce :: Maybe (IV AES128)
   cipher    <- traceMaybe "aeadInit" $ maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
   let (ciphertext, tag) = BS.splitAt (BS.length payload - 16) payload
-  plaintext <- traceShowId $ aeadSimpleDecrypt cipher ("" :: ByteString) ciphertext (authTagFromByteString tag)
+  plaintext <- traceMaybe "aeadSimpleDecrypt" $ aeadSimpleDecrypt cipher ("" :: ByteString) ciphertext (authTagFromByteString tag)
   let padSizeLen  = 2
       paddingSize = BS.take padSizeLen plaintext
       padSize     = fromIntegral $ BS.foldl1 (\x y -> shift x 8 .|. y) paddingSize
