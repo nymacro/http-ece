@@ -31,6 +31,7 @@ library
                      , http-types
                      , text
                      , containers
+                     , either
 
 test-suite test
   type:                exitcode-stdio-1.0

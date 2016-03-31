@@ -12,7 +12,6 @@ module Network.HTTP.ECE.DH
        , PublicPoint
        , dhEncrypt
        , dhDecrypt ) where
-import           Debug.Trace
 
 import           Network.HTTP.ECE
 import qualified Network.HTTP.ECE.Shared    as Shared
@@ -24,6 +23,7 @@ import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Base64.URL as UB64
 import           Data.ByteString.Lazy       (toStrict)
+import           Data.Either.Combinators    (rightToMaybe)
 import           Data.Monoid
 import           Data.Text
 import           Data.Text.Encoding         (decodeUtf8, encodeUtf8)
@@ -56,9 +56,11 @@ generateP256 = do
   return (privatePoint, fromPoint publicPoint)
 
 -- | get public point from private
-getPublic :: PrivateNumber -> P256.Point
-getPublic private = let (Point x y) = calculatePublic curve private
-                    in P256.pointFromIntegers (x, y)
+-- getPublic :: PrivateNumber -> P256.Point
+-- getPublic private = let (Point x y) = calculatePublic curve private
+--                     in P256.pointFromIntegers (x, y)
+getPublic :: PrivateNumber -> Point
+getPublic private = calculatePublic curve private
 
 -- | Convert P256.Point to Point type
 fromPoint :: P256.Point -> Point
@@ -115,11 +117,11 @@ dhEncrypt keyId private public recipientPublic salt plaintext = do
                       , ("Crypto-Key", encodeEncryptionParams [ ("keyid", Just keyId)
                                                               , ("dh", Just $ decodeUtf8 $ UB64.encode public) ]) ]
       privateNumber = loadPrivateKey private
-  recipient <- Shared.traceMaybe "loadPublicPoint" $ loadPublicPoint recipientPublic
-  let secret        = traceShowId $ Network.HTTP.ECE.DH.getShared privateNumber recipient
-      context       = traceShowId $ dhContext (encodeUtf8 keyId) recipientPublic public
-      hkdfKey       = traceShowId $ Shared.makeSharedKey (traceShow ("Salt: ", salt) salt) secret context
-      hkdfSalt      = traceShowId $ Shared.makeNonce salt secret context
+  recipient <- loadPublicPoint recipientPublic
+  let secret        = Network.HTTP.ECE.DH.getShared privateNumber recipient
+      context       = dhContext (encodeUtf8 keyId) recipientPublic public
+      hkdfKey       = Shared.makeSharedKey salt secret context
+      hkdfSalt      = Shared.makeNonce salt secret context
   ciphertext <- Shared.encrypt hkdfKey hkdfSalt plaintext
   return (headers, ciphertext)
 
@@ -127,21 +129,21 @@ dhDecrypt :: ([Header], ByteString)
           -> (Text -> Maybe ByteString)
           -> Maybe ByteString
 dhDecrypt (headers, ciphertext) retriever = do
-  encryptionParams <- Shared.traceMaybe "getHeader encryption" $ getHeader "Encryption" headers >>= decodeEncryptionParams . decodeUtf8
-  cryptoKeyParams  <- Shared.traceMaybe "getHeader cryptokey" $ getHeader "Crypto-Key" headers >>= decodeEncryptionParams . decodeUtf8
-  keyId            <- Shared.traceMaybe "getParam keyid" $ getParam "keyid" encryptionParams
-  salt             <- Shared.traceMaybe "getParam salt" $ getParam "salt" encryptionParams
-  dh               <- Shared.traceMaybe "getParam dh" $ getParam "dh" cryptoKeyParams
-  dhBytes          <- return . UB64.decodeLenient $ encodeUtf8 dh
-  saltBytes        <- traceShowId $ return . UB64.decodeLenient $ encodeUtf8 salt
-  recipient        <- Shared.traceMaybe "loadPublicPoint" $ loadPublicPoint dhBytes
+  encryptionParams <- getHeader "Encryption" headers >>= decodeEncryptionParams . decodeUtf8
+  cryptoKeyParams  <- getHeader "Crypto-Key" headers >>= decodeEncryptionParams . decodeUtf8
+  keyId            <- getParam "keyid" encryptionParams
+  salt             <- getParam "salt" encryptionParams
+  dh               <- getParam "dh" cryptoKeyParams
+  dhBytes          <- rightToMaybe . UB64.decode $ encodeUtf8 dh
+  saltBytes        <- rightToMaybe . UB64.decode $ encodeUtf8 salt
+  recipient        <- loadPublicPoint dhBytes
   -- retrieve the private key for keyid
-  privateBytes     <- Shared.traceMaybe "retriever" $ retriever keyId
+  privateBytes     <- retriever keyId
   private          <- return $ loadPrivateKey privateBytes
   publicPoint      <- return $ getPublic private
-  public           <- return $ P256.pointToBinary publicPoint
-  let secret   = traceShowId $ Network.HTTP.ECE.DH.getShared private recipient
-      context  = traceShowId $ dhContext (encodeUtf8 keyId) public dhBytes
-      hkdfKey  = traceShowId $ Shared.makeSharedKey (traceShow ("Salt: ", saltBytes) saltBytes) secret context
-      hkdfSalt = traceShowId $ Shared.makeNonce saltBytes secret context
+  public           <- return $ fromPublicPoint publicPoint
+  let secret   = Network.HTTP.ECE.DH.getShared private recipient
+      context  = dhContext (encodeUtf8 keyId) public dhBytes
+      hkdfKey  = Shared.makeSharedKey saltBytes secret context
+      hkdfSalt = Shared.makeNonce saltBytes secret context
   Shared.decrypt hkdfKey hkdfSalt ciphertext
