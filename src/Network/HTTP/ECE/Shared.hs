@@ -72,6 +72,8 @@ encrypt encryptionKey nonce plaintext = do
   let padSizeLen = 2
       toEncrypt  = BS.replicate padSizeLen 0 <> plaintext
       (authTag, encrypted) = traceShowId $ aeadSimpleEncrypt cipher ("" :: ByteString) toEncrypt 16
+      -- (encrypted, ci) = aeadEncrypt cipher toEncrypt
+      -- authTag    = aeadFinalize ci 16
   Just $ encrypted <> authTagToByteString authTag
 
 authTagToByteString :: AuthTag -> ByteString

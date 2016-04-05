@@ -49,3 +49,4 @@ test-suite test
                      , base16-bytestring
                      , hspec
                      , http-types
+                     , case-insensitive

@@ -10,8 +10,6 @@ import           Network.HTTP.ECE.Key
 import qualified Network.HTTP.ECE.Shared    as Shared
 import           Network.HTTP.Types
 
-import           Debug.Trace
-
 import qualified Data.ByteArray             as ByteArray
 import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
