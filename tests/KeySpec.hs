@@ -20,8 +20,6 @@ import           Crypto.Cipher.Types
 import           Crypto.Error               (eitherCryptoError,
                                              maybeCryptoError)
 
-import           Debug.Trace
-
 spec :: Spec
 spec = do
   describe "HTTP Encrypted Content-Encoding" $ do
