@@ -4,7 +4,6 @@ module Network.HTTP.ECE.Shared ( encrypt
                                , authTagFromByteString
                                , cekInfo
                                , nonceInfo
-                               , traceMaybe
                                , makeSharedKey
                                , makeNonce ) where
 
@@ -22,17 +21,6 @@ import           Crypto.Error
 import           Crypto.Hash.Algorithms
 import           Crypto.KDF.HKDF
 import           Crypto.MAC.HMAC
-
-import           Debug.Trace
-
-traceMaybe msg a = case a of
-                     Just x -> Just x
-                     Nothing -> trace ("failed: " <> msg) Nothing
-
--- TODO remove this
--- traceMaybe _ a = case a of
---                    Just x -> Just x
---                    Nothing -> Nothing
 
 makeSharedKey :: ByteString -- ^ salt
               -> ByteString -- ^ input key material (shared key)
@@ -65,13 +53,13 @@ encrypt :: ByteString -- ^ encryption key
         -> ByteString -- ^ data to encrypt
         -> Maybe ByteString
 encrypt encryptionKey nonce plaintext = do
-  aesCipher <- traceMaybe "cipherInit" $ maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
-  iv        <- traceMaybe "makeIV" $ makeIV nonce :: Maybe (IV AES128)
-  cipher    <- traceMaybe "aeadInit" $ maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
+  aesCipher <- maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
+  iv        <- makeIV nonce :: Maybe (IV AES128)
+  cipher    <- maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
   -- add padding
   let padSizeLen = 2
       toEncrypt  = BS.replicate padSizeLen 0 <> plaintext
-      (authTag, encrypted) = traceShowId $ aeadSimpleEncrypt cipher ("" :: ByteString) toEncrypt 16
+      (authTag, encrypted) = aeadSimpleEncrypt cipher ("" :: ByteString) toEncrypt 16
       -- (encrypted, ci) = aeadEncrypt cipher toEncrypt
       -- authTag    = aeadFinalize ci 16
   Just $ encrypted <> authTagToByteString authTag
@@ -88,11 +76,11 @@ decrypt :: ByteString -- ^ encryption key
         -> ByteString -- ^ encrypted payload
         -> Maybe ByteString
 decrypt encryptionKey nonce payload = do
-  aesCipher <- traceMaybe "cipherInit" $ maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
-  iv        <- traceMaybe "makeIV" $ makeIV nonce :: Maybe (IV AES128)
-  cipher    <- traceMaybe "aeadInit" $ maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
+  aesCipher <- maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
+  iv        <- makeIV nonce :: Maybe (IV AES128)
+  cipher    <- maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
   let (ciphertext, tag) = BS.splitAt (BS.length payload - 16) payload
-  plaintext <- traceMaybe "aeadSimpleDecrypt" $ aeadSimpleDecrypt cipher ("" :: ByteString) ciphertext (authTagFromByteString tag)
+  plaintext <- aeadSimpleDecrypt cipher ("" :: ByteString) ciphertext (authTagFromByteString tag)
   let padSizeLen  = 2
       paddingSize = BS.take padSizeLen plaintext
       padSize     = fromIntegral $ BS.foldl1 (\x y -> shift x 8 .|. y) paddingSize
