@@ -22,8 +22,10 @@ import           Crypto.Hash.Algorithms
 import           Crypto.KDF.HKDF
 import           Crypto.MAC.HMAC
 
+-- | Generate the CEK
+-- TODO: rename this function
 makeSharedKey :: ByteString -- ^ salt
-              -> ByteString -- ^ input key material (shared key)
+              -> ByteString -- ^ input key material (shared secret)
               -> ByteString -- ^ context
               -> ByteString -- ^ 128-bit AES key
 makeSharedKey salt keyMaterial context =
@@ -34,10 +36,11 @@ makeSharedKey salt keyMaterial context =
 makeNonce :: ByteString -- ^ salt
           -> ByteString -- ^ input key material (shared key)
           -> ByteString -- ^ context
-          -> ByteString -- ^ 128-bit AES key
+          -> ByteString -- ^ 12 nonce
 makeNonce salt keyMaterial context =
   let prk = extract salt keyMaterial :: PRK SHA256
-  in expand prk (nonceInfo context <> "\x01") 12 <> BS.pack [0,0,0,0] -- FIXME 12 octet HKDF output <> 4 byte null. Should be just 12 octet
+      nonce = expand prk (nonceInfo context <> "\x01") 12 :: ByteString
+  in BS.map (`xor` 0x00) nonce -- seq #0; is this correct? I don't think so...
 
 -- | info parameter to used for HKDF key derivation
 cekInfo :: ByteString -> ByteString
@@ -54,14 +57,11 @@ encrypt :: ByteString -- ^ encryption key
         -> Maybe ByteString
 encrypt encryptionKey nonce plaintext = do
   aesCipher <- maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
-  iv        <- makeIV nonce :: Maybe (IV AES128)
-  cipher    <- maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
+  cipher    <- maybeCryptoError $ aeadInit AEAD_GCM aesCipher nonce
   -- add padding
   let padSizeLen = 2
       toEncrypt  = BS.replicate padSizeLen 0 <> plaintext
       (authTag, encrypted) = aeadSimpleEncrypt cipher ("" :: ByteString) toEncrypt 16
-      -- (encrypted, ci) = aeadEncrypt cipher toEncrypt
-      -- authTag    = aeadFinalize ci 16
   Just $ encrypted <> authTagToByteString authTag
 
 authTagToByteString :: AuthTag -> ByteString
@@ -77,8 +77,7 @@ decrypt :: ByteString -- ^ encryption key
         -> Maybe ByteString
 decrypt encryptionKey nonce payload = do
   aesCipher <- maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
-  iv        <- makeIV nonce :: Maybe (IV AES128)
-  cipher    <- maybeCryptoError $ aeadInit AEAD_GCM aesCipher iv
+  cipher    <- maybeCryptoError $ aeadInit AEAD_GCM aesCipher nonce
   let (ciphertext, tag) = BS.splitAt (BS.length payload - 16) payload
   plaintext <- aeadSimpleDecrypt cipher ("" :: ByteString) ciphertext (authTagFromByteString tag)
   let padSizeLen  = 2

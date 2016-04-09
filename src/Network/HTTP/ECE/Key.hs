@@ -3,7 +3,9 @@
 module Network.HTTP.ECE.Key ( ExplicitKey (..)
                             , generateKey
                             , generateSalt
-                            , explicitKeyLookup ) where
+                            , explicitKeyLookup
+                            , explicitKeyDecrypt
+                            , explicitKeyEncrypt ) where
 
 import           Network.HTTP.ECE
 import qualified Network.HTTP.ECE.Shared    as Shared

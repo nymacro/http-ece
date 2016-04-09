@@ -57,23 +57,41 @@ spec = do
       -- FIXME.. This doesn't match, which is a big bad bad
       let senderPublic    = loadPublicPoint senderPublicB
           senderPublicB   = UB64.decodeLenient "BNoRDbb84JGm8g5Z5CFxurSqsXWJ11ItfXEWYVLE85Y7CYkDjXsIEc4aqxYaQ1G8BqkXCJ6DPpDrWtdWj_mugHU"
-          senderPrivate   = loadPrivateKey  $ UB64.decodeLenient "nCScek-QpEjmOOlT-rQ38nZzvdPlqa00Zy0i6m2OJvY"
+          senderPrivate   = loadPrivateKey $ UB64.decodeLenient "nCScek-QpEjmOOlT-rQ38nZzvdPlqa00Zy0i6m2OJvY"
           receiverPublic  = loadPublicPoint receiverPublicB
           receiverPublicB = UB64.decodeLenient "BCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQU"
-          receiverPrivate = loadPrivateKey  $ UB64.decodeLenient "9FWl15_QUQAWDaD3k3l50ZBZQJ4au27F1V4F0uLSD_M"
+          receiverPrivate = loadPrivateKey $ UB64.decodeLenient "9FWl15_QUQAWDaD3k3l50ZBZQJ4au27F1V4F0uLSD_M"
           salt            = UB64.decodeLenient "lngarbyKfMoi9Z75xYXmkg"
           -- expected values
-          -- sharedSecret    = UB64.decodeLenient "RNjC-NVW4BGJbxWPW7G2mowsLeDa53LYKYm4-NOQ6Y" -- 44D8C2F8D556E011896F158F5BB1B69A8C2C2DE0DAE772D82989B8F8D390E9
-          (sharedSecret, _)  = B16.decode "44D8C2F8D556E011896F158F5BB1B69A8C2C2DE0DAE772D82989B8F8D390E9"
+          sharedSecret    = UB64.decodeLenient "RNjC-NVW4BGJbxWPW7G2mowsLeDa53LYKYm4-NOQ6Y" -- 44D8C2F8D556E011896F158F5BB1B69A8C2C2DE0DAE772D82989B8F8D390E9
+          ikm             = UB64.decodeLenient "EhpZec37Ptm4IRD5-jtZ0q6r1iK5vYmY1tZwtN8fbZY"
+          cekInfo         = UB64.decodeLenient "Q29udGVudC1FbmNvZGluZzogYWVzZ2NtAFAtMjU2AABBBCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQUAQQTaEQ22_OCRpvIOWeQhcbq0qrF1iddSLX1xFmFSxPOWOwmJA417CBHOGqsWGkNRvAapFwiegz6Q61rXVo_5roB1"
+          cek             = UB64.decodeLenient "AN2-xhvFWeYh5z0fcDu0Ww"
+          nonceInfo       = UB64.decodeLenient "Q29udGVudC1FbmNvZGluZzogbm9uY2UAUC0yNTYAAEEEISQGPMvxncL6iLZDugTm3Y2n6nuiyMYuD3epQ_TC-pFPbUQRbJ_RxANBxqRAyrPiFApg5DeKXac1ly3geABRBQBBBNoRDbb84JGm8g5Z5CFxurSqsXWJ11ItfXEWYVLE85Y7CYkDjXsIEc4aqxYaQ1G8BqkXCJ6DPpDrWtdWj_mugHU"
+          baseNonce       = UB64.decodeLenient "JY1Okw5rw1Drkg9J"
+          -- keyid
+          label = "P-256"
 
-      it "should generate correct CEK Info" $ do
-        let label = "P-256"
-        Shared.cekInfo (dhContext label senderPublicB receiverPublicB) `shouldBe` UB64.decodeLenient "Q29udGVudC1FbmNvZGluZzogYWVzZ2NtAFAtMjU2AABBBCEkBjzL8Z3C-oi2Q7oE5t2Np-p7osjGLg93qUP0wvqRT21EEWyf0cQDQcakQMqz4hQKYOQ3il2nNZct4HgAUQUAQQTaEQ22_OCRpvIOWeQhcbq0qrF1iddSLX1xFmFSxPOWOwmJA417CBHOGqsWGkNRvAapFwiegz6Q61rXVo_5roB1"
-
-      it "should generate correct shared key" $ do
-        BS.length sharedSecret `shouldBe` 32
+      it "should generate correct shared secret" $ do
+        -- shared secret should be 32-bytes
+        -- BS.length sharedSecret `shouldBe` 32
         getShared senderPrivate <$> receiverPublic `shouldBe` Just sharedSecret
         getShared receiverPrivate <$> senderPublic `shouldBe` Just sharedSecret
+
+      it "should generate correct CEK info/context" $ do
+        Shared.cekInfo (dhContext label senderPublicB receiverPublicB) `shouldBe` cekInfo
+
+      it "should generate the correct nonce info/context" $ do
+        Shared.nonceInfo (dhContext label senderPublicB receiverPublicB) `shouldBe` nonceInfo
+
+      it "should generate the correct nonce" $ do
+        let context = dhContext label senderPublicB receiverPublicB
+        Shared.makeNonce salt ikm context `shouldBe` baseNonce
+
+      it "should generate the correct CEK" $ do
+        let context = dhContext label senderPublicB receiverPublicB
+        BS.length cek `shouldBe` 16
+        Shared.makeSharedKey salt ikm context `shouldBe` cek
 
     describe "Misc" $ do
       it "should be able to generate shared point" $ do
