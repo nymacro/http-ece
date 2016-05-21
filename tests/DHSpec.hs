@@ -75,6 +75,11 @@ spec = do
       it "should generate correct shared secret" $ do
         -- shared secret should be 32-bytes
         -- BS.length sharedSecret `shouldBe` 32
+        print $ BS.length sharedSecret
+        let share1 = getShared senderPrivate <$> receiverPublic
+        let share2 = getShared receiverPrivate <$> senderPublic
+        print $ maybe 0 BS.length share1
+
         getShared senderPrivate <$> receiverPublic `shouldBe` Just sharedSecret
         getShared receiverPrivate <$> senderPublic `shouldBe` Just sharedSecret
 
@@ -85,11 +90,11 @@ spec = do
         Shared.nonceInfo (dhContext label senderPublicB receiverPublicB) `shouldBe` nonceInfo
 
       it "should generate the correct nonce" $ do
-        let context = dhContext label senderPublicB receiverPublicB
+        let context = Shared.nonceInfo (dhContext label senderPublicB receiverPublicB)
         Shared.makeNonce salt ikm context `shouldBe` baseNonce
 
       it "should generate the correct CEK" $ do
-        let context = dhContext label senderPublicB receiverPublicB
+        let context = Shared.cekInfo (dhContext label senderPublicB receiverPublicB)
         BS.length cek `shouldBe` 16
         Shared.makeSharedKey salt ikm context `shouldBe` cek
 

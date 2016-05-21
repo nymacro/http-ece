@@ -10,7 +10,8 @@ module Network.HTTP.ECE ( ECEMethod (..)
                         , encodeEncryptionParams
                         , getParam
                         , getHeader
-                        , ContentEncoding (..) ) where
+                        , ContentEncoding (..)
+                        , ECEKeyType (..) ) where
 
 import           Control.Applicative   ((<|>))
 import           Control.Monad         (filterM)
@@ -29,6 +30,11 @@ import           Data.Text             hiding (filter, head, length, null,
 import           Data.Text.Encoding    (decodeUtf8, encodeUtf8)
 
 import           Prelude               hiding (takeWhile)
+
+data ECEKeyType = ExplicitKeyType     -- shared key
+                | ECDHKeyType         -- private ECDH private key
+                | RemotePublicKeyType -- public ECDH key
+                deriving (Eq, Ord)
 
 data ECEMethod = ExplicitMethod
                | DHMethod
@@ -101,12 +107,12 @@ getHeader key header =
 
 -- | Content encoding type
 class ContentEncoding a where
-  encrypt :: Text       -- ^ key id
-          -> ByteString -- ^ secret
-          -> ByteString -- ^ salt
-          -> ByteString -- ^ plaintext
+  encrypt :: Text                      -- ^ key id
+          -> ((Text, ECEKeyType) -> Maybe ByteString) -- ^ key retrieval func
+          -> ByteString                -- ^ salt
+          -> ByteString                -- ^ plaintext
           -> Maybe (a ([Header], ByteString))
 
-  decrypt :: (Text -> Maybe ByteString) -- ^ key retrieval func
+  decrypt :: ((Text, ECEKeyType) -> Maybe ByteString) -- ^ key retrieval func
           -> a ([Header], ByteString)  -- ^ output from encrypt
           -> Maybe ByteString

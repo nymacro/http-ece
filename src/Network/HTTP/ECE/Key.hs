@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ECE.Key ( ExplicitKey (..)
                             , generateKey
@@ -75,5 +74,8 @@ explicitKeyLookup :: ByteString -> KeyStore -> Maybe ByteString
 explicitKeyLookup keyid = getKey (ExplicitMethod, keyid)
 
 instance ContentEncoding ExplicitKey where
-  encrypt keyId key salt plaintext = ExplicitKey <$> explicitKeyEncrypt keyId key salt plaintext
-  decrypt _ (ExplicitKey x)  = explicitKeyDecrypt x (const Nothing)
+  encrypt keyId keyFunc salt plaintext = do
+    key <- keyFunc (keyId, ExplicitKeyType)
+    ExplicitKey <$> explicitKeyEncrypt keyId key salt plaintext
+
+  decrypt _ (ExplicitKey x) = explicitKeyDecrypt x (const Nothing)

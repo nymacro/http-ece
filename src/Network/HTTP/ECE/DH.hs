@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ECE.DH
-       ( generateP256
+       ( ECDHKey (..)
+       , generateP256
        , curve
        , Network.HTTP.ECE.DH.getShared
        , loadPublicPoint
@@ -36,6 +37,8 @@ import           Crypto.PubKey.ECC.Generate
 import qualified Crypto.PubKey.ECC.P256     as P256
 import           Crypto.PubKey.ECC.Types
 
+data ECDHKey a = ECDHKey a
+
 curve :: Curve
 curve = getCurveByName SEC_p256r1
 
@@ -45,7 +48,7 @@ getShared :: PrivateNumber -- ^ sender private number
           -> ByteString    -- ^ shared key bytes
 getShared priv pub =
   let (SharedKey key) = DH.getShared curve priv pub
-  in i2osp key
+  in ByteArray.convert key
 
 -- | Generate P256 pair
 generateP256 :: IO (PrivateNumber, PublicPoint)
@@ -126,7 +129,7 @@ dhEncrypt keyId private public recipientPublic salt plaintext = do
   return (headers, ciphertext)
 
 dhDecrypt :: ([Header], ByteString)
-          -> (Text -> Maybe ByteString)
+          -> ((Text, ECEKeyType) -> Maybe ByteString)
           -> Maybe ByteString
 dhDecrypt (headers, ciphertext) retriever = do
   encryptionParams <- getHeader "Encryption" headers >>= decodeEncryptionParams . decodeUtf8
@@ -138,7 +141,7 @@ dhDecrypt (headers, ciphertext) retriever = do
   saltBytes        <- rightToMaybe . UB64.decode $ encodeUtf8 salt
   recipient        <- loadPublicPoint dhBytes
   -- retrieve the private key for keyid
-  privateBytes     <- retriever keyId
+  privateBytes     <- retriever (keyId, ECDHKeyType)
   private          <- return $ loadPrivateKey privateBytes
   publicPoint      <- return $ getPublic private
   public           <- return $ fromPublicPoint publicPoint
@@ -147,3 +150,14 @@ dhDecrypt (headers, ciphertext) retriever = do
       hkdfKey  = Shared.makeSharedKey saltBytes secret context
       hkdfSalt = Shared.makeNonce saltBytes secret context
   Shared.decrypt hkdfKey hkdfSalt ciphertext
+
+instance ContentEncoding ECDHKey where
+  encrypt keyId keyFunc salt plaintext = do
+    keyBytes           <- keyFunc (keyId, ECDHKeyType)
+    remotePublicBytes  <- keyFunc (keyId, RemotePublicKeyType)
+    localPrivate       <- return $ loadPrivateKey keyBytes
+    localPublic        <- return $ getPublic localPrivate
+    localPublicBytes   <- return $ fromPublicPoint localPublic
+    ECDHKey <$> dhEncrypt keyId keyBytes localPublicBytes remotePublicBytes salt plaintext
+
+  decrypt keyFunc (ECDHKey x) = dhDecrypt x keyFunc

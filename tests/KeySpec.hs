@@ -26,21 +26,21 @@ spec = do
   describe "Explicit Key" $ do
     describe "Example" $ do
       it "should decrypt RFC example" $ do
-        let salt       = UB64.decodeLenient "vr0o6Uq3w_KDWeatc27mUg"
-            key        = UB64.decodeLenient "csPJEXBYA5U-Tal9EdJi-w"
+        let salt       = "vr0o6Uq3w_KDWeatc27mUg"
+            key        = "csPJEXBYA5U-Tal9EdJi-w"
             ciphertext = UB64.decodeLenient "VDeU0XxaJkOJDAxPl7h9JD5V8N43RorP7PfpPdZZQuwF"
             keyId      = "a1"
             headers    = [ ("Encryption", encodeEncryptionParams [ ("keyid", Just keyId)
-                                                                 , ("salt", Just $ decodeUtf8 $ UB64.encode salt)])
+                                                                 , ("salt", Just salt)])
                          , ("Crypto-Key", encodeEncryptionParams [ ("keyid", Just keyId)
-                                                                 , ("aesgcm", Just $ decodeUtf8 $ UB64.encode key)])]
+                                                                 , ("aesgcm", Just key)])]
         explicitKeyDecrypt (headers, ciphertext) (const Nothing) `shouldBe` Just "I am the walrus"
 
     describe "Misc" $ do
       it "should encrypt/decrypt" $ do
         let salt      = UB64.decodeLenient "vr0o6Uq3w_KDWeatc27mUg"
             key       = UB64.decodeLenient "csPJEXBYA5U-Tal9EdJi-w"
-            encrypted = encrypt "a1" key salt "I am the walrus" :: Maybe (ExplicitKey ([Header], ByteString))
+            encrypted = encrypt "a1" (const $ Just key) salt "I am the walrus" :: Maybe (ExplicitKey ([Header], ByteString))
             decrypted = decrypt (const Nothing) =<< encrypted
         decrypted `shouldBe` Just "I am the walrus"
 
