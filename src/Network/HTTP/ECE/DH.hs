@@ -142,22 +142,22 @@ dhDecrypt (headers, ciphertext) retriever = do
   recipient        <- loadPublicPoint dhBytes
   -- retrieve the private key for keyid
   privateBytes     <- retriever (keyId, ECDHKeyType)
-  private          <- return $ loadPrivateKey privateBytes
-  publicPoint      <- return $ getPublic private
-  public           <- return $ fromPublicPoint publicPoint
-  let secret   = Network.HTTP.ECE.DH.getShared private recipient
-      context  = dhContext (encodeUtf8 keyId) public dhBytes
-      hkdfKey  = Shared.makeSharedKey saltBytes secret context
-      hkdfSalt = Shared.makeNonce saltBytes secret context
+  let private      = loadPrivateKey privateBytes
+      publicPoint  = getPublic private
+      public       = fromPublicPoint publicPoint
+      secret       = Network.HTTP.ECE.DH.getShared private recipient
+      context      = dhContext (encodeUtf8 keyId) public dhBytes
+      hkdfKey      = Shared.makeSharedKey saltBytes secret context
+      hkdfSalt     = Shared.makeNonce saltBytes secret context
   Shared.decrypt hkdfKey hkdfSalt ciphertext
 
 instance ContentEncoding ECDHKey where
   encrypt keyId keyFunc salt plaintext = do
     keyBytes           <- keyFunc (keyId, ECDHKeyType)
     remotePublicBytes  <- keyFunc (keyId, RemotePublicKeyType)
-    localPrivate       <- return $ loadPrivateKey keyBytes
-    localPublic        <- return $ getPublic localPrivate
-    localPublicBytes   <- return $ fromPublicPoint localPublic
+    let localPrivate     = loadPrivateKey keyBytes
+        localPublic      = getPublic localPrivate
+        localPublicBytes = fromPublicPoint localPublic
     ECDHKey <$> dhEncrypt keyId keyBytes localPublicBytes remotePublicBytes salt plaintext
 
   decrypt keyFunc (ECDHKey x) = dhDecrypt x keyFunc

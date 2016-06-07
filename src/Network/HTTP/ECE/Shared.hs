@@ -21,7 +21,6 @@ import           Crypto.Error
 import           Crypto.Hash.Algorithms
 import           Crypto.KDF.HKDF
 import           Crypto.MAC.HMAC
-import           Debug.Trace
 
 -- | Generate the CEK
 -- TODO: rename this function
@@ -79,7 +78,7 @@ decrypt :: ByteString -- ^ encryption key
 decrypt encryptionKey nonce payload = do
   aesCipher <- maybeCryptoError (cipherInit encryptionKey) :: Maybe AES128
   cipher    <- maybeCryptoError $ aeadInit AEAD_GCM aesCipher nonce
-  let (ciphertext, tag) = traceShowId $ BS.splitAt (BS.length payload - 16) payload
+  let (ciphertext, tag) = BS.splitAt (BS.length payload - 16) payload
   plaintext <- aeadSimpleDecrypt cipher ("" :: ByteString) ciphertext (authTagFromByteString tag)
   let padSizeLen  = 2
       paddingSize = BS.take padSizeLen plaintext

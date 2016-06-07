@@ -18,6 +18,8 @@ import qualified Network.HTTP.ECE.Shared    as Shared
 import qualified Data.CaseInsensitive       as CI
 import           Test.Hspec
 
+import           Crypto.Number.Serialize    (os2ip)
+
 spec :: Spec
 spec = do
   describe "ECDH" $ do
@@ -73,15 +75,15 @@ spec = do
           label = "P-256"
 
       it "should generate correct shared secret" $ do
-        -- shared secret should be 32-bytes
-        -- BS.length sharedSecret `shouldBe` 32
-        print $ BS.length sharedSecret
-        let share1 = getShared senderPrivate <$> receiverPublic
-        let share2 = getShared receiverPrivate <$> senderPublic
-        print $ maybe 0 BS.length share1
+        -- sharedSecret = 31-bytes
+        -- getShared P  = 32-bytes
+        let share1   = conv . getShared senderPrivate <$> receiverPublic
+            share2   = conv . getShared receiverPrivate <$> senderPublic
+            expected = conv sharedSecret
+            conv     = id
 
-        getShared senderPrivate <$> receiverPublic `shouldBe` Just sharedSecret
-        getShared receiverPrivate <$> senderPublic `shouldBe` Just sharedSecret
+        share1 `shouldBe` Just expected
+        share2 `shouldBe` Just expected
 
       it "should generate correct CEK info/context" $ do
         Shared.cekInfo (dhContext label senderPublicB receiverPublicB) `shouldBe` cekInfo
