@@ -2,10 +2,11 @@
 [![Build Status](https://travis-ci.org/nymacro/http-ece.svg?branch=master)](https://travis-ci.org/nymacro/http-ece)
 
 ## About
-An implementation of the *HTTP Encrypted Content-Encoding* standard in Haskell.
+An implementation of the *HTTP Encrypted Content-Encoding* standard (draft) in Haskell.
 
 ## Status
-* Does not interoperation (yet).
+* Doesn't work correctly (yet)
+* Does not interoperate (yet)
 
 ## Copyright
 ```

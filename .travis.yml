@@ -13,7 +13,7 @@ before_install:
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
 env:
-- ARGS="--resolver lts-5"
+- ARGS="--resolver lts-6"
 
 script:
 - stack $ARGS --no-terminal --install-ghc test
